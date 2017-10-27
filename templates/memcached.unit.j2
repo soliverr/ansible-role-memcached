@@ -1,0 +1,17 @@
+[Unit]
+{% if memcached_service is defined %}
+Description=Memcached {{ memcached_service }}
+{% else %}
+Description=Memcached
+{% endif %}
+Before=httpd.service
+After=network.target
+
+[Service]
+Type=simple
+{% if memcached_service is defined %}
+EnvironmentFile=-/etc/sysconfig/memcached-{{ memcached_service }}
+{% else %}
+EnvironmentFile=-/etc/sysconfig/memcache
+{% endif %}
+ExecStart=/usr/bin/memcached -u $USER -p $PORT -m $CACHESIZE -c $MAXCONN $OPTIONS

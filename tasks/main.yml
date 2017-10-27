@@ -1,31 +1,60 @@
 ---
 # Include variables and define needed variables.
 - name: Include OS-specific variables.
+  tags: memcached
   include_vars: "{{ ansible_os_family }}.yml"
 
 - name: Define memcached_user.
+  tags: memcached
   set_fact:
     memcached_user: "{{ __memcached_user }}"
   when: memcached_user is not defined
 
 # Setup/install tasks.
 - name: Update apt cache.
+  tags: memcached
   apt: update_cache=yes cache_valid_time=86400
   when: ansible_os_family == 'Debian'
 
 - name: Install Memcached.
+  tags: memcached
   package: name=memcached state=installed
   register: memcached_install
 
 # Configure Memcached.
 - name: Copy Memcached configuration.
+  tags: memcached
   template:
     src: memcached-{{ ansible_os_family }}.conf.j2
-    dest: "{{ memcached_config_file }}"
+    dest: "{{ memcached_config_file+'-' + memcached_service if memcached_service is defined else memcached_config_file }}"
     owner: root
     group: root
     mode: 0644
   notify: restart memcached
 
+- name: Copy memcached systemd unit file into place (for systemd systems).
+  tags: memcached
+  when: ansible_distribution == 'CentOS' and ansible_distribution_major_version|int >= 7 and memcached_service is defined
+  template:
+    src: memcached.unit.j2
+    dest: /etc/systemd/system/memcached-{{ memcached_service }}.service
+    owner: root
+    group: root
+    mode: 0755
+  notify: reload systemd
+
+- name: Define memcached service.
+  tags: memcached
+  set_fact:
+    _memcached_service: "{{ 'memcached-' + memcached_service if memcached_service is defined else 'memcached' }}"
+
+- debug: var=_memcached_service
+  tags: memcached
+
 - name: Ensure Memcached is started and set to run on startup.
-  service: name=memcached state=started enabled=yes
+  tags: memcached
+  service:
+    name: "{{ _memcached_service }}"
+    state: started
+    enabled: yes
+
